@@ -1,19 +1,18 @@
 from PIL import Image, ImageFont, ImageDraw, ImageOps
-from . import BaseImagingBackend
+from . import BaseRenderingBackend
 
 # TODO: add custom exceptions and error handling
 
-class ImagingBackend(BaseImagingBackend):
+class RenderingBackend(BaseRenderingBackend):
 
     base = None
     path = None
     fmt = None
     impositions = []
 
-    def __init__(self, base_img_path, save_path, fmt="JPEG"):
-        self.base = self.pilimg(base_img_path)
-        self.path = save_path
-        self.fmt = fmt
+    def __init__(self, comp):
+        self.comp = comp
+        self.base = self.pilimg(comp.template.image.path)
 
     def impose_text(self, text, pos, font_path=None, color="black", size=12):
         if len(pos) > 2:
@@ -98,3 +97,33 @@ class ImagingBackend(BaseImagingBackend):
         w = box[2] - box[0]
         h = box[3] - box[1]
         return (w, h)
+        
+    def render(self, fmt='JPEG'):
+        comp = self.comp
+        output = engine.ImagingBackend(comp.template.image.path, COMPDIR)
+        engine = import_module(imaging_module, package='impositions')
+
+        for region in comp.regions.all():
+            if region.region.content_type == 'text':
+                output.impose_text(
+                    region.fill.text,
+                    region.region.box,
+                    region.fill.font.font_file.path,
+                    region.fill.fg_color,
+                    region.fill.font_size
+                )
+            elif region.region.content_type == 'image':
+                output.impose_image(region.fill.image.path, region.region.box)
+            else:
+                raise NotImplementedError
+
+        filepath = "{0}/{1}_{2}.jpg".format(
+            COMPDIR,
+            comp.template.name,
+            datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
+        )
+
+        output.save(fmt, filepath)
+        comp.file_path = filepath
+        comp.save()
+        return filepath

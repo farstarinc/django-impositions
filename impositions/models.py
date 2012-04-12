@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 from django.db import models
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
@@ -21,48 +22,66 @@ class TemplateFont(models.Model):
     def __unicode__(self):
         return self.name
 
-class TemplateImageFill(models.Model):
-    description = models.CharField(max_length=200, blank=True)
-    image = models.ImageField(upload_to='impositions/assets', null=True, blank=True)
-    text = models.TextField(null=True, blank=True)
-    font = models.ForeignKey(TemplateFont, null=True, blank=True)
-    font_size = models.IntegerField(null=True, blank=True)
-    bg_color = models.CharField(max_length=50, null=True, blank=True)
-    fg_color = models.CharField(max_length=50, null=True, blank=True)
-    border_color = models.CharField(max_length=50, null=True, blank=True)
-    border_size = models.IntegerField(null=True, blank=True)
-
-    def __unicode__(self):
-        return self.description or self.text or self.image.url
-
-class TemplateImage(models.Model):
+class Template(models.Model):
     name = models.CharField(max_length=100)
-    image = models.ImageField(upload_to='impositions/templates')
+    file = models.FileField(upload_to='impositions/templates')
 
     def __unicode__(self):
         return self.name
 
-class TemplateImageRegion(models.Model):
-    template = models.ForeignKey(TemplateImage, related_name='regions')
+class TemplateImage(models.Model):
+    name = models.CharField(max_length=100)
+    file = models.ImageField(upload_to='impositions/templates')
+
+
+class TemplateRegion(models.Model):
+    template = models.ForeignKey(Template, related_name='regions')
     name = models.CharField(max_length=150)
-    description = models.TextField(null=True, blank=True)
+    description = models.TextField(blank=True)
     content_type = models.CharField(max_length=16, choices=REGION_TYPES)
-    top_left = models.CommaSeparatedIntegerField(max_length=12)
-    bottom_right = models.CommaSeparatedIntegerField(max_length=12)
-    allowed_fonts = models.ManyToManyField(TemplateFont, null=True, blank=True)
-    allowed_colors = models.TextField(null=True, blank=True)
-    allowed_sizes = models.CommaSeparatedIntegerField(max_length=50, null=True, blank=True)
-    allowed_images = models.ManyToManyField(TemplateImageFill, null=True, blank=True)
-    # TODO: add alignment property to properly position fills that are smaller than the region
+    top = models.IntegerField()
+    left = models.IntegerField()
+    width = models.IntegerField(null=True, blank=True)
+    height = models.IntegerField(null=True, blank=True)
+    allowed_fonts = models.CharField(max_length=255,blank=True,
+            help_text='comma-separated')
+    allowed_colors = models.TextField(blank=True)
+    allowed_font_sizes = models.CharField(max_length=50, blank=True)
+    allowed_images = models.ManyToManyField(TemplateImage, blank=True)
+    allow_markup = models.BooleanField()
+    text_style = models.CharField(max_length=255, blank=True)
+    justify = models.BooleanField()
+    crop = models.BooleanField()
+    default_value = models.TextField(blank=True)
 
     @property
     def size(self):
-        t, l, b, r = self.box
-        return (r - l, b - t)
+        return self.width, self.height
 
     @property
     def box(self):
-        return eval(self.top_left) + eval(self.bottom_right)
+        return (self.top, self.left, 
+               self.top + self.height,
+               self.left + self.width)
+    
+    def get_allowed_colors(self):
+        from impositions import utils
+        if self.allowed_colors:
+            allowed = self.allowed_colors.split(',')
+            return [utils.parse_color(c) for c in allowed]
+        return []
+
+    def get_allowed_fonts(self):
+        if self.allowed_fonts:
+            allowed = self.allowed_fonts.split(',')
+            return [f.strip() for f in allowed]
+        return []
+
+    def get_allowed_font_sizes(self):
+        if self.allowed_font_sizes:
+            allowed = self.allowed_font_sizes.split(',')
+            return [Decimal(s) for s in allowed]
+        return []
 
     def __unicode__(self):
         return "{0} (Template: {1})".format(
@@ -72,9 +91,8 @@ class TemplateImageRegion(models.Model):
 
 
 class Composition(models.Model):
-    template = models.ForeignKey(TemplateImage)
+    template = models.ForeignKey(Template)
     description = models.CharField(max_length=200)
-    file_path = models.FilePathField(path=COMPDIR, recursive=True, blank=True)
     # TODO: add format property so user can choose format (jpg, png, pdf)
 
     def __unicode__(self):
@@ -83,13 +101,63 @@ class Composition(models.Model):
             self.description
         )
 
+    def render(self, fmt, **kwargs):
+        from impositions.utils import get_rendering_backend
+        Backend = get_rendering_backend()
+        backend = Backend(self, **kwargs)
+        return backend.render(fmt)
+
 class CompositionRegion(models.Model):
     comp = models.ForeignKey(Composition, related_name='regions')
-    region = models.ForeignKey(TemplateImageRegion)
-    fill = models.ForeignKey(TemplateImageFill)
+    template_region = models.ForeignKey(TemplateRegion)
+    image = models.ImageField(upload_to='impositions/assets', blank=True)
+    text = models.TextField(blank=True)
+    font = models.CharField(max_length=50, blank=True)
+    font_size = models.DecimalField(max_digits=8, decimal_places=2, 
+                                    null=True, blank=True)
+    bg_color = models.CharField(max_length=50, blank=True)
+    fg_color = models.CharField(max_length=50, blank=True)
+    border_color = models.CharField(max_length=50, blank=True)
+    border_size = models.IntegerField(null=True, blank=True)
 
     def __unicode__(self):
-        return "{0}::{1}".format(
-            self.comp.__unicode__(),
-            self.region.name
-        )
+        return self.template_region.name
+
+    def get_fg_color(self):
+        from impositions import utils
+        if self.fg_color:
+            return utils.parse_color(self.fg_color)
+        allowed = self.template_region.get_allowed_colors()
+        return len(allowed) > 0 and allowed[0] or None
+
+    def get_bg_color(self):
+        from impositions import utils
+        if self.bg_color:
+            return utils.parse_color(self.bg_color)
+        allowed = self.template_region.get_allowed_colors()
+        return len(allowed) > 0 and allowed[0] or None
+
+    def get_font(self):
+        if self.font:
+            return self.font
+        allowed = self.template_region.get_allowed_fonts()
+        return len(allowed) > 0 and allowed[0] or None
+
+    def get_font_size(self):
+        if self.font_size:
+            return self.font_size
+        allowed = self.template_region.get_allowed_font_sizes()
+        return len(allowed) > 0 and allowed[0] or None
+    
+    def get_content(self, context):
+        from django import template
+        tpl = template.Template(self.template_region.default_value)
+        default = tpl.render(template.Context(context)).strip()
+        type = self.template_region.content_type
+        if type == 'image':
+            if default:
+                return default
+            else:
+                return self.image.path
+        elif type == 'text':
+            return self.text.strip() or default
