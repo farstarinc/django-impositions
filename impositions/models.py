@@ -24,7 +24,7 @@ class TemplateFont(models.Model):
 
 class Template(models.Model):
     name = models.CharField(max_length=100)
-    file = models.FileField(upload_to='impositions/templates')
+    file = models.FileField('Template file', upload_to='impositions/templates')
 
     def __unicode__(self):
         return self.name
