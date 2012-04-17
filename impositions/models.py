@@ -36,7 +36,7 @@ class TemplateImage(models.Model):
 
 class TemplateRegion(models.Model):
     template = models.ForeignKey(Template, related_name='regions')
-    name = models.CharField(max_length=150)
+    name = models.CharField(max_length=150, default='Unnamed Region')
     description = models.TextField(blank=True)
     content_type = models.CharField(max_length=16, choices=REGION_TYPES)
     top = models.IntegerField()
