@@ -29,6 +29,14 @@ class Template(models.Model):
     def __unicode__(self):
         return self.name
 
+    def get_thumbnail(self):
+        from impositions.utils import get_rendering_backend
+        Backend = get_rendering_backend()
+        backend = Backend()
+        template = self
+        return backend.get_template_thumbnail(template)
+
+
 class TemplateImage(models.Model):
     name = models.CharField(max_length=100)
     file = models.ImageField(upload_to='impositions/templates')
@@ -104,8 +112,8 @@ class Composition(models.Model):
     def render(self, fmt, **kwargs):
         from impositions.utils import get_rendering_backend
         Backend = get_rendering_backend()
-        backend = Backend(self, **kwargs)
-        return backend.render(fmt)
+        backend = Backend()
+        return backend.render(self, fmt, **kwargs)
 
 class CompositionRegion(models.Model):
     comp = models.ForeignKey(Composition, related_name='regions')

@@ -4,15 +4,14 @@ from django.core.exceptions import ValidationError
 class BaseRenderingBackend(object):
     supported_formats = []
 
-    def __init__(self, comp, context={}, output=None):
-        self.comp = comp
+    def __init__(self, context={}, output=None):
         self.context = context
         self.output = output
         if self.output is None:
             self.output = StringIO.StringIO()
     
-    def validate(self):
-        for region in self.comp.regions.all():
+    def validate(self, comp):
+        for region in comp.regions.all():
             name = region.template_region.name
             # check colors
             allowed = region.template_region.get_allowed_colors()
@@ -30,5 +29,12 @@ class BaseRenderingBackend(object):
             if allowed and font and font.lower() not in allowed:
                 raise ValidationError("Font not allowed in '{}': {}".format(name, font))
 
-    def render(self, fmt):
+    def render(self, comp, fmt):
+        raise NotImplementedError
+
+    def get_template_thumbnail(self, template):
+        """
+        Returns a file-like object with the template image for use with
+        the easy_thumbnails thumbnailer.
+        """
         raise NotImplementedError

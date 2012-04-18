@@ -1,9 +1,12 @@
 from __future__ import absolute_import
+import os
 import re
+import StringIO
 import cairo
 import poppler
 import pango
 import pangocairo
+from django.conf import settings
 from impositions.backends import BaseRenderingBackend
 
 if not cairo.HAS_PDF_SURFACE:
@@ -11,19 +14,31 @@ if not cairo.HAS_PDF_SURFACE:
 
 class RenderingBackend(BaseRenderingBackend):
     supported_formats = ['pdf', 'png']
-
+    
     def __init__(self, *args, **kwargs):
         super(RenderingBackend, self).__init__(*args, **kwargs)
+        self.cr = None
+        self.page = None
+        self.pdf = None
+
+    def setup_template(self, template):
+        if self.cr and self.page and self.pdf:
+            return
 
         # Get source document
-        source_path = self.comp.template.file.path
+        source_path = template.file.path
         self.document = poppler.document_new_from_file('file://{}'.format(source_path), None)
         self.page = self.document.get_page(0)
 
         # Create destination document
         self.width, self.height = self.page.get_size()
-        self.pdf = cairo.PDFSurface(self.output, self.width, self.height)
+        self.pdf = cairo.PDFSurface(None, self.width, self.height)
         self.cr = cairo.Context(self.pdf)
+
+        # Render source pdf to destination
+        self.cr.save()
+        self.page.render(self.cr)
+        self.cr.restore()
 
     def render_text_region(self, region):
         x, y = region.template_region.left, region.template_region.top
@@ -81,15 +96,11 @@ class RenderingBackend(BaseRenderingBackend):
         self.cr.set_source_surface(image)
         self.cr.paint()
 
-    def render(self, fmt):
-        self.validate()
+    def render(self, comp, fmt):
+        self.validate(comp)
+        self.setup_template(comp.template)
 
-        # Render source pdf to destination
-        self.cr.save()
-        self.page.render(self.cr)
-        self.cr.restore()
-
-        for region in self.comp.regions.all():
+        for region in comp.regions.all():
             self.cr.save()
             if region.template_region.content_type == 'text':
                 self.render_text_region(region)
@@ -107,3 +118,18 @@ class RenderingBackend(BaseRenderingBackend):
             raise ValueError("Format not supported by cairo backend: {}".format(fmt))
 
         return self.output
+
+    def get_template_thumbnail(self, template):
+        # Check for rendered thumb in media
+        dir = os.path.join('impositions', 'templates')
+        full_dir = os.path.join(settings.MEDIA_ROOT, dir)
+        filename = '{}.png'.format(os.path.basename(template.file.name))
+        path = os.path.join(full_dir, filename)
+        if not os.path.exists(path):
+            if not os.path.exists(full_dir):
+                os.makedirs(full_dir)
+            file = open(path, 'w')
+            self.setup_template(template)
+            self.pdf.write_to_png(file)
+            file.close()
+        return os.path.join(dir, filename)
