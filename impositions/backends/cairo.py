@@ -65,9 +65,12 @@ class RenderingBackend(BaseRenderingBackend):
         style = region.template_region.text_style
         if style:
             content = '<span {}>{}</span>'.format(style, content)
-
-        if region.template_region.justify:
+        
+        if region.template_region.text_align == 'JUSTIFY':
             layout.set_justify(True)
+        else:
+            align = region.template_region.text_align or 'LEFT'
+            layout.set_alignment(getattr(pango, 'ALIGN_{}'.format(align)))
 
         layout.set_markup(content)
         rgb = region.get_fg_color() or (0,0,0)

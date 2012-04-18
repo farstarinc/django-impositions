@@ -13,6 +13,5 @@ class CompositionRegionInline(admin.StackedInline):
 class CompositionAdmin(admin.ModelAdmin):
     inlines = [CompositionRegionInline]
 
-admin.site.register(models.TemplateFont)
 admin.site.register(models.Template, TemplateAdmin)
 admin.site.register(models.Composition, CompositionAdmin)

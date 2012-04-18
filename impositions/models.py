@@ -9,22 +9,28 @@ REGION_TYPES = (
     ('image', 'Image'),
 )
 
+ALIGN_CHOICES = (
+    ('LEFT', 'Left'),
+    ('CENTER', 'Center'),
+    ('RIGHT', 'Right'),
+    ('JUSTIFY', 'Justify'),
+)
+
 if not hasattr(settings, 'COMPDIR'):
     COMPDIR = os.path.join(settings.MEDIA_ROOT, 'impositions', 'comps')
 else:
     COMPDIR = settings.COMPDIR
 COMPSTORAGE = FileSystemStorage(location=COMPDIR)
 
-class TemplateFont(models.Model):
+class TemplateImage(models.Model):
     name = models.CharField(max_length=100)
-    font_file = models.FileField(upload_to='impositions/fonts')
-
-    def __unicode__(self):
-        return self.name
+    file = models.ImageField(upload_to='impositions/templates')
 
 class Template(models.Model):
     name = models.CharField(max_length=100)
     file = models.FileField('Template file', upload_to='impositions/templates')
+    fonts = models.CharField(max_length=255, blank=True)
+    color_palette = models.CharField(max_length=255, blank=True)
 
     def __unicode__(self):
         return self.name
@@ -37,11 +43,6 @@ class Template(models.Model):
         return backend.get_template_thumbnail(template)
 
 
-class TemplateImage(models.Model):
-    name = models.CharField(max_length=100)
-    file = models.ImageField(upload_to='impositions/templates')
-
-
 class TemplateRegion(models.Model):
     template = models.ForeignKey(Template, related_name='regions')
     name = models.CharField(max_length=150, default='Unnamed Region')
@@ -51,14 +52,14 @@ class TemplateRegion(models.Model):
     left = models.IntegerField()
     width = models.IntegerField(null=True, blank=True)
     height = models.IntegerField(null=True, blank=True)
-    allowed_fonts = models.CharField(max_length=255,blank=True,
-            help_text='comma-separated')
-    allowed_colors = models.TextField(blank=True)
+    allowed_fonts = models.CharField(max_length=255,blank=True)
+    allowed_colors = models.CharField(max_length=255,blank=True)
     allowed_font_sizes = models.CharField(max_length=50, blank=True)
     allowed_images = models.ManyToManyField(TemplateImage, blank=True)
     allow_markup = models.BooleanField()
     text_style = models.CharField(max_length=255, blank=True)
-    justify = models.BooleanField()
+    text_align = models.CharField(max_length=20, choices=ALIGN_CHOICES, 
+            blank=True, default='LEFT')
     crop = models.BooleanField()
     default_value = models.TextField(blank=True)
 

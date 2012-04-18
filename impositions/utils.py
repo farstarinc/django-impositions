@@ -29,3 +29,5 @@ def parse_color(color):
 
     raise ValueError("Unrecognized color: {}".format(color))
 
+def get_system_fonts():
+    pass
