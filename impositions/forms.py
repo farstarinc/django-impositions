@@ -5,6 +5,9 @@ from impositions import models
 class TemplateForm(forms.ModelForm):
     class Meta:
         model = models.Template
+        widgets = {
+            'data_loaders': forms.CheckboxSelectMultiple,
+        }
 
 class RegionForm(forms.ModelForm):
     class Meta:

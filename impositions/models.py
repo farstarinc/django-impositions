@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.db import models
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.generic import GenericForeignKey
 
 REGION_TYPES = (
     ('text', 'Text'),
@@ -22,15 +24,26 @@ else:
     COMPDIR = settings.COMPDIR
 COMPSTORAGE = FileSystemStorage(location=COMPDIR)
 
+
 class TemplateImage(models.Model):
     name = models.CharField(max_length=100)
     file = models.ImageField(upload_to='impositions/templates')
+
+class DataLoader(models.Model):
+    prefix = models.CharField(max_length=30)
+    path = models.CharField(max_length=255)
+
+    def __unicode__(self):
+        from impositions.utils import get_data_loader
+        DataLoader = get_data_loader(self.path)
+        return DataLoader().verbose_name()
 
 class Template(models.Model):
     name = models.CharField(max_length=100)
     file = models.FileField('Template file', upload_to='impositions/templates')
     fonts = models.CharField(max_length=255, blank=True)
     color_palette = models.CharField(max_length=255, blank=True)
+    data_loaders = models.ManyToManyField(DataLoader, blank=True)
 
     def __unicode__(self):
         return self.name
@@ -53,8 +66,8 @@ class TemplateRegion(models.Model):
     width = models.IntegerField(null=True, blank=True)
     height = models.IntegerField(null=True, blank=True)
     allowed_fonts = models.CharField(max_length=255,blank=True)
-    allowed_colors = models.CharField(max_length=255,blank=True)
     allowed_font_sizes = models.CharField(max_length=50, blank=True)
+    allowed_colors = models.CharField(max_length=255,blank=True)
     allowed_images = models.ManyToManyField(TemplateImage, blank=True)
     allow_markup = models.BooleanField()
     text_style = models.CharField(max_length=255, blank=True)
@@ -98,7 +111,6 @@ class TemplateRegion(models.Model):
             self.template.__unicode__()
         )
 
-
 class Composition(models.Model):
     template = models.ForeignKey(Template)
     description = models.CharField(max_length=200)
@@ -115,6 +127,24 @@ class Composition(models.Model):
         Backend = get_rendering_backend()
         backend = Backend()
         return backend.render(self, fmt, **kwargs)
+
+    def get_context(self, request):
+        from impositions.utils import get_data_loader
+        context = {}
+        for source in self.data_sources.all():
+            context.update(source.get_context(request))
+            DataLoader = get_data_loader(self.loader.path)
+            data_loader = DataLoader(request)
+            data_loader.set_instance(self.content_object)
+            context.update(data_loader.get_context(self.loader.prefix))
+        return context
+            
+class CompositionDataSource(models.Model):
+    composition = models.ForeignKey(Composition, related_name='data_sources')
+    loader = models.ForeignKey(DataLoader)
+    content_type = models.ForeignKey(ContentType)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
 
 class CompositionRegion(models.Model):
     comp = models.ForeignKey(Composition, related_name='regions')

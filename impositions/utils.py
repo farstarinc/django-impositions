@@ -7,6 +7,11 @@ def get_rendering_backend():
     engine = import_module(imaging_module, package='impositions')
     return engine.RenderingBackend
 
+def get_data_loader(path):
+    module, classname = path.rsplit('.', 1)
+    mod = import_module(module)
+    return getattr(mod, classname)
+
 def parse_color(color):
     if isinstance(color, basestring):
         color = color.strip()

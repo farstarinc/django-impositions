@@ -4,11 +4,11 @@ from django.core.exceptions import ValidationError
 class BaseRenderingBackend(object):
     supported_formats = []
 
-    def __init__(self, context={}, output=None):
-        self.context = context
+    def __init__(self, output=None, context={}):
         self.output = output
         if self.output is None:
             self.output = StringIO.StringIO()
+        self.context = context
     
     def validate(self, comp):
         for region in comp.regions.all():
@@ -28,6 +28,12 @@ class BaseRenderingBackend(object):
             font = region.get_font()
             if allowed and font and font.lower() not in allowed:
                 raise ValidationError("Font not allowed in '{}': {}".format(name, font))
+    
+    def set_output(self, output):
+        self.output = output
+
+    def set_context(self, context):
+        self.context = context
 
     def render(self, comp, fmt):
         raise NotImplementedError
