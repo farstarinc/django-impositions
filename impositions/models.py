@@ -74,7 +74,8 @@ class TemplateRegion(models.Model):
     text_align = models.CharField(max_length=20, choices=ALIGN_CHOICES, 
             blank=True, default='LEFT')
     crop = models.BooleanField()
-    default_value = models.TextField(blank=True)
+    default_text = models.TextField('Default Text', blank=True)
+    default_image = models.CharField('Default Image', max_length=255, blank=True)
 
     @property
     def size(self):
@@ -190,13 +191,14 @@ class CompositionRegion(models.Model):
     
     def get_content(self, context):
         from django import template
-        tpl = template.Template(self.template_region.default_value)
-        default = tpl.render(template.Context(context)).strip()
         type = self.template_region.content_type
         if type == 'image':
-            if default:
-                return default
-            else:
+            if self.image:
                 return self.image.path
+            if self.template_region.default_image:
+                return context.get(self.template_region.default_image, None)
+            return None
         elif type == 'text':
+            tpl = template.Template(self.template_region.default_text)
+            default = tpl.render(template.Context(context)).strip()
             return self.text.strip() or default

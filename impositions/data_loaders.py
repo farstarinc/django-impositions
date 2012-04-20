@@ -1,4 +1,5 @@
 import itertools
+from django.db.models.fields import FieldDoesNotExist
 
 class BaseDataLoader(object):
     model = None
@@ -31,7 +32,26 @@ class BaseDataLoader(object):
         if func and callable(func):
             return func()
         return None
-
+    
+    def get_field_choices(self, type, prefix):
+        choices = []
+        for field in self.fields[type]:
+            key = '.'.join((prefix, field))
+            verbose_name = None
+            try:
+                field = self.model._meta.get_field(field)
+                verbose_name = unicode(field.verbose_name).capitalize()
+            except FieldDoesNotExist:
+                pass
+            if not verbose_name:
+                func = getattr(self, field, None)
+                if func and hasattr(func, 'verbose_name'):
+                    verbose_name = func.verbose_name
+            if not verbose_name:
+                verbose_name = field.replace('_', ' ').capitalize()
+            choices.append((key, verbose_name))
+        return choices
+        
     def get_context(self, prefix):
         context = {}
         fields = itertools.chain(v for k,v in self.get_fields())

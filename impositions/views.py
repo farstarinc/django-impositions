@@ -1,6 +1,9 @@
 from django import http
 from django.views.generic import list, edit
+from django.contrib import messages
+from django.contrib.auth.decorators import permission_required
 from impositions import models, forms
+from impositions.utils import get_data_loader
 
 class TemplateListView(list.ListView):
     model = models.Template
@@ -22,12 +25,25 @@ class TemplateUpdateView(edit.UpdateView):
             self.object = form.save()
             region_formset.instance = self.object
             region_formset.save()
+            msg = 'Template successfully saved.'
+            messages.add_message(self.request, messages.SUCCESS, msg)
             return http.HttpResponseRedirect('.')
         return super(TemplateUpdateView, self).form_valid(form)
 
     def get_context_data(self, **kwargs):
         context = super(TemplateUpdateView, self).get_context_data(**kwargs)
+
         context['formset_form_tpl'] = 'impositions/region_form.html'
+
+        context['data_fields'] = []
+        if self.object:
+            fields = []
+            for loader in self.object.data_loaders.all():
+                DataLoader = get_data_loader(loader.path)
+                data_loader = DataLoader()
+                field_choices = data_loader.get_field_choices('text', loader.prefix)
+                fields.extend([(data_loader.verbose_name(), field_choices)])
+            context['data_fields'] = fields
 
         if self.request.POST: 
             region_formset = forms.TemplateRegionFormSet(self.request.POST, 
@@ -38,6 +54,10 @@ class TemplateUpdateView(edit.UpdateView):
         context.update(region_formset=region_formset)
         return context
 
-template_list = TemplateListView.as_view()
-template_create = TemplateCreateView.as_view()
-template_edit = TemplateUpdateView.as_view()
+
+def tpl_view(func):
+    return permission_required('impositions.change_template')(func)
+
+template_list = tpl_view(TemplateListView.as_view())
+template_create = tpl_view(TemplateCreateView.as_view())
+template_edit = tpl_view(TemplateUpdateView.as_view())
