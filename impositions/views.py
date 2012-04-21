@@ -2,8 +2,7 @@ from django import http
 from django.views.generic import list, edit
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required
-from impositions import models, forms
-from impositions.utils import get_data_loader
+from impositions import models, forms, utils
 
 class TemplateListView(list.ListView):
     model = models.Template
@@ -39,7 +38,7 @@ class TemplateUpdateView(edit.UpdateView):
         if self.object:
             fields = []
             for loader in self.object.data_loaders.all():
-                DataLoader = get_data_loader(loader.path)
+                DataLoader = utils.get_data_loader(loader.path)
                 data_loader = DataLoader()
                 field_choices = data_loader.get_field_choices('text', loader.prefix)
                 fields.extend([(data_loader.verbose_name(), field_choices)])
@@ -53,7 +52,6 @@ class TemplateUpdateView(edit.UpdateView):
 
         context.update(region_formset=region_formset)
         return context
-
 
 def tpl_view(func):
     return permission_required('impositions.change_template')(func)

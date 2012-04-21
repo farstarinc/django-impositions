@@ -35,4 +35,9 @@ def parse_color(color):
     raise ValueError("Unrecognized color: {}".format(color))
 
 def get_system_fonts():
-    pass
+    # Currently this only works with the cairo backend
+    if settings.IMPOSITIONS_BACKEND != 'cairo':
+        raise NotImplementedError("Font listing does not work with the selected impositions backend.")
+    import pangocairo
+    font_map = pangocairo.cairo_font_map_get_default()
+    return [f.get_name() for f in font_map.list_families()]
