@@ -3,20 +3,22 @@ from django.forms.models import inlineformset_factory, BaseInlineFormSet
 from impositions import models
 from impositions import utils
 
-class FontSelect(forms.SelectMultiple):
+class CSVSelect(object):
     def value_from_datadict(self, data, files, name):
         return ','.join(data.getlist(name))
 
     def render(self, name, value, attrs):
         value = value.split(',')
-        return super(FontSelect, self).render(name, value, attrs)
+        return super(CSVSelect, self).render(name, value, attrs)
 
+class CSVSelectMultiple(CSVSelect, forms.SelectMultiple): pass
+class CSVCheckboxSelectMultiple(CSVSelect, forms.CheckboxSelectMultiple): pass
 
 class TemplateForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(TemplateForm, self).__init__(*args, **kwargs)
         choices = [(f,f) for f in utils.get_system_fonts()]
-        self.fields['fonts'].widget = FontSelect(choices=choices)
+        self.fields['fonts'].widget = CSVSelectMultiple(choices=choices)
 
     class Meta:
         model = models.Template
@@ -34,6 +36,15 @@ class RegionForm(forms.ModelForm):
         default_image = self.instance and self.instance.default_image or ''
         self.fields['default_image'].initial = default_image
         self.fields['default_image'].widget = forms.Select(choices=image_choices)
+        
+        to_choices = lambda s: [(v.strip(),v.strip()) for v in s.split(',')]
+        font_choices = to_choices(template.fonts)
+        color_choices = to_choices(template.color_palette)
+        self.fields['allowed_fonts'].widget = CSVSelectMultiple(choices=font_choices)
+        self.fields['allowed_colors'].widget = CSVSelectMultiple(choices=color_choices)
+       
+        yesno = ((True, 'Yes'), (False, 'No'))
+        self.fields['allow_markup'].widget = forms.RadioSelect(choices=yesno)
 
     def get_field_choices(self, template, type):
         choices = [('', '--------')]
