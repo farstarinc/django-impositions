@@ -40,4 +40,6 @@ def get_system_fonts():
         raise NotImplementedError("Font listing does not work with the selected impositions backend.")
     import pangocairo
     font_map = pangocairo.cairo_font_map_get_default()
-    return [f.get_name() for f in font_map.list_families()]
+    font_list = [f.get_name() for f in font_map.list_families()]
+    font_list.sort()
+    return font_list
