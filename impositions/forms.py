@@ -3,10 +3,14 @@ from django.forms.models import inlineformset_factory, BaseInlineFormSet
 from impositions import models
 from impositions import utils
 
-class FontSelect(forms.Select):
+class FontSelect(forms.SelectMultiple):
     def value_from_datadict(self, data, files, name):
-        import ipdb; ipdb.set_trace()
-        return ''
+        return ','.join(data.getlist(name))
+
+    def render(self, name, value, attrs):
+        value = value.split(',')
+        return super(FontSelect, self).render(name, value, attrs)
+
 
 class TemplateForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
