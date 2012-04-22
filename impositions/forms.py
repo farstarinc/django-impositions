@@ -8,7 +8,10 @@ class CSVSelect(object):
         return ','.join(data.getlist(name))
 
     def render(self, name, value, attrs):
-        value = value.split(',')
+        if value is None:
+            value = []
+        else:
+            value = value.split(',')
         return super(CSVSelect, self).render(name, value, attrs)
 
 class CSVSelectMultiple(CSVSelect, forms.SelectMultiple): pass
@@ -19,6 +22,9 @@ class TemplateForm(forms.ModelForm):
         super(TemplateForm, self).__init__(*args, **kwargs)
         choices = [(f,f) for f in utils.get_system_fonts()]
         self.fields['fonts'].widget = CSVSelectMultiple(choices=choices)
+        color_help = 'Enter hex values (eg, #FF0000), separated by commas'
+        self.fields['color_palette'].help_text = color_help
+        self.fields['data_loaders'].help_text = ''
 
     class Meta:
         model = models.Template
@@ -42,6 +48,7 @@ class RegionForm(forms.ModelForm):
         color_choices = to_choices(template.color_palette)
         self.fields['allowed_fonts'].widget = CSVSelectMultiple(choices=font_choices)
         self.fields['allowed_colors'].widget = CSVSelectMultiple(choices=color_choices)
+        self.fields['allowed_font_sizes'].help_text = 'Specify font sizes points, separated by comma'
        
         yesno = ((True, 'Yes'), (False, 'No'))
         self.fields['allow_markup'].widget = forms.RadioSelect(choices=yesno)
@@ -64,7 +71,12 @@ class RegionForm(forms.ModelForm):
 class BaseRegionFormSet(BaseInlineFormSet):
     def _construct_form(self, index, **kwargs):
         kwargs['template_instance'] = self.instance
-        return super(BaseInlineFormSet, self)._construct_form(index, **kwargs)
+        return super(BaseRegionFormSet, self)._construct_form(index, **kwargs)
+    
+    def _get_empty_form(self, **kwargs):
+        kwargs['template_instance'] = self.instance
+        return super(BaseRegionFormSet, self)._get_empty_form(**kwargs)
+    empty_form = property(_get_empty_form)
 
 TemplateRegionFormSet = inlineformset_factory(models.Template,
                                               models.TemplateRegion,

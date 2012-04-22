@@ -2,17 +2,24 @@ from django import http
 from django.views.generic import list, edit
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required
+from django.utils.decorators import method_decorator
 from impositions import models, forms, utils
 
-class TemplateListView(list.ListView):
+class Base(object):
+    @method_decorator(permission_required('impositions.change_template'))
+    def dispatch(self, request, *args, **kwargs):
+        return super(Base, self).dispatch(request, *args, **kwargs)
+
+class TemplateListView(Base, list.ListView):
     model = models.Template
     context_object_name = 'templates'
 
-class TemplateCreateView(edit.CreateView):
+class TemplateCreateView(Base, edit.CreateView):
     model = models.Template
     context_object_name = 'template'
+    form_class = forms.TemplateForm
 
-class TemplateUpdateView(edit.UpdateView):
+class TemplateUpdateView(Base, edit.UpdateView):
     model = models.Template
     context_object_name = 'template'
     form_class = forms.TemplateForm
@@ -53,9 +60,6 @@ class TemplateUpdateView(edit.UpdateView):
         context.update(region_formset=region_formset)
         return context
 
-def tpl_view(func):
-    return permission_required('impositions.change_template')(func)
-
-template_list = tpl_view(TemplateListView.as_view())
-template_create = tpl_view(TemplateCreateView.as_view())
-template_edit = tpl_view(TemplateUpdateView.as_view())
+template_list = TemplateListView.as_view()
+template_create = TemplateCreateView.as_view()
+template_edit = TemplateUpdateView.as_view()
