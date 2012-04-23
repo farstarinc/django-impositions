@@ -83,3 +83,6 @@ TemplateRegionFormSet = inlineformset_factory(models.Template,
                                               form=RegionForm,
                                               formset=BaseRegionFormSet,
                                               extra=0)
+
+class CompositionForm(forms.ModelForm):
+    model = models.Composition
