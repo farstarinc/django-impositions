@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 import os
 import re
-import StringIO
 import cairo
 import poppler
 import pango
@@ -21,12 +20,11 @@ class RenderingBackend(BaseRenderingBackend):
         self.page = None
         self.pdf = None
 
-    def setup_template(self, template):
+    def setup_template(self, source_path):
         if self.cr and self.page and self.pdf:
             return
 
         # Get source document
-        source_path = template.file.path
         self.document = poppler.document_new_from_file('file://{}'.format(source_path), None)
         self.page = self.document.get_page(0)
 
@@ -101,7 +99,7 @@ class RenderingBackend(BaseRenderingBackend):
 
     def render(self, comp, fmt):
         self.validate(comp)
-        self.setup_template(comp.template)
+        self.setup_template(comp.template.file.path)
 
         for region in comp.regions.all():
             self.cr.save()
@@ -122,17 +120,17 @@ class RenderingBackend(BaseRenderingBackend):
 
         return self.output
 
-    def get_template_thumbnail(self, template):
+    def get_template_thumbnail(self, file_path):
         # Check for rendered thumb in media
         dir = os.path.join('impositions', 'templates')
         full_dir = os.path.join(settings.MEDIA_ROOT, dir)
-        filename = '{}.png'.format(os.path.basename(template.file.name))
+        filename = '{}.png'.format(os.path.basename(file_path))
         path = os.path.join(full_dir, filename)
         if not os.path.exists(path):
             if not os.path.exists(full_dir):
                 os.makedirs(full_dir)
             file = open(path, 'w')
-            self.setup_template(template)
+            self.setup_template(file_path)
             self.pdf.write_to_png(file)
             file.close()
         return os.path.join(dir, filename)

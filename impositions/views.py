@@ -1,71 +1,17 @@
-from django.views.generic import list, edit
+from django.conf import settings
+from django.core.urlresolvers import reverse
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required, login_required
 from django.utils.decorators import method_decorator
-from django.forms.models import inlineformset_factory
-from impositions import models, forms, utils
+from django.views.generic import list, edit
+from impositions import models, forms, utils, helpers
 
 class TemplateBase(object):
+    context_object_name = 'template'
+
     @method_decorator(permission_required('impositions.change_template'))
     def dispatch(self, request, *args, **kwargs):
         return super(TemplateBase, self).dispatch(request, *args, **kwargs)
-
-class FormSetMixin(object):
-    """
-    Note that this cannot be used in a CreateView
-    """
-    formset_class = None
-    formset_model = None
-
-    def __init__(self, *args, **kwargs):
-        if not self.formset_class:
-            self.formset_class = inlineformset_factory(self.model,
-                    self.formset_model)
-        super(FormSetMixin, self).__init__(*args, **kwargs)
-    
-    def get_formset_class(self):
-        return self.formset_class
-    
-    def get_formset(self, formset_class):
-        return formset_class(**self.get_formset_kwargs())
-    
-    def get_formset_kwargs(self):
-        kwargs = {'instance':self.object}
-        if self.request.method in ('POST', 'PUT'):
-            kwargs.update({
-                'data': self.request.POST,
-                'files': self.request.FILES,
-            })
-        return kwargs
-
-    def get(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        form_class = self.get_form_class()
-        formset_class = self.get_formset_class()
-        form = self.get_form(form_class)
-        formset = self.get_formset(formset_class)
-        context = self.get_context_data(form=form, formset=formset)
-        return self.render_to_response(context)
-
-    def post(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        form_class = self.get_form_class()
-        formset_class = self.get_formset_class()
-        form = self.get_form(form_class)
-        formset = self.get_formset(formset_class)
-        if form.is_valid() and formset.is_valid():
-            return self.form_valid(form, formset)
-        else:
-            return self.form_invalid(form, formset)
-
-    def form_valid(self, form, formset):
-        self.object = form.save()
-        formset.instance = self.object
-        formset.save()
-        return super(FormSetMixin, self).form_valid(form)
-
-    def form_invalid(self, form, formset):
-        return self.render_to_response(self.get_context_data(form=form, formset=formset))
 
 
 class TemplateListView(TemplateBase, list.ListView):
@@ -74,12 +20,13 @@ class TemplateListView(TemplateBase, list.ListView):
 
 class TemplateCreateView(TemplateBase, edit.CreateView):
     model = models.Template
-    context_object_name = 'template'
     form_class = forms.TemplateForm
+    
+    def get_success_url(self):
+        return reverse('impositions-template-edit', kwargs={'pk':self.object.pk})
 
-class TemplateUpdateView(TemplateBase, FormSetMixin, edit.UpdateView):
+class TemplateUpdateView(TemplateBase, helpers.InlineFormSetMixin, edit.UpdateView):
     model = models.Template
-    context_object_name = 'template'
     form_class = forms.TemplateForm
     formset_class = forms.TemplateRegionFormSet
     success_url = '.'
@@ -87,7 +34,7 @@ class TemplateUpdateView(TemplateBase, FormSetMixin, edit.UpdateView):
     def form_valid(self, form, formset):
         response = super(TemplateUpdateView, self).form_valid(form, formset)
         msg = 'Template successfully saved.'
-        messages.add_message(self.request, messages.SUCCESS, msg)
+        messages.add_message(self.request, messages.INFO, msg)
         return response
 
     def get_context_data(self, **kwargs):
@@ -107,10 +54,14 @@ class TemplateUpdateView(TemplateBase, FormSetMixin, edit.UpdateView):
 
         return context
 
-class CompositionUpdateView(FormSetMixin, edit.UpdateView):
+class TemplateDeleteView(TemplateBase, edit.DeleteView):
+    def get_success_url(self):
+        return reverse('impositions-template-list')
+
+class CompositionUpdateView(helpers.InlineFormSetMixin, edit.UpdateView):
     model = models.Composition
-    formset_model = models.CompositionRegion
     form_class = forms.CompositionForm
+    formset_class = forms.CompositionRegionFormSet
     context_object_name = 'composition'
     success_url = '.'
     
@@ -118,7 +69,13 @@ class CompositionUpdateView(FormSetMixin, edit.UpdateView):
     def dispatch(self, request, *args, **kwargs):
         return super(CompositionUpdateView, self).dispatch(request, *args, **kwargs)
 
+    def get_context_data(self, **kwargs):
+        kwargs['formset_form_tpl'] = 'impositions/composition_region_form.html'
+        return super(CompositionUpdateView, self).get_context_data(**kwargs)
+
+
 template_list = TemplateListView.as_view()
 template_create = TemplateCreateView.as_view()
 template_edit = TemplateUpdateView.as_view()
+template_delete = TemplateDeleteView.as_view(model=models.Template)
 comp_edit = CompositionUpdateView.as_view()

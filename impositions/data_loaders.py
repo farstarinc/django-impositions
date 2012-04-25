@@ -5,10 +5,9 @@ class BaseDataLoader(object):
     model = None
     fields = []
     
-    def __init__(self, request=None):
+    def __init__(self):
         if not self.model:
             raise ValueError("model is required for data loaders")
-        self.request = request
         self.instance = None
     
     def set_instance(self, instance):

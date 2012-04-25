@@ -1,6 +1,7 @@
 import os
 from decimal import Decimal
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -48,13 +49,40 @@ class Template(models.Model):
     def __unicode__(self):
         return self.name
 
+    def get_color_palette(self):
+        if self.color_palette:
+            colors = self.color_palette.split(',')
+            return [c.strip() for c in colors]
+        return []
+
+    def clean(self):
+        from impositions import utils
+        # make sure color values are valid
+        if self.color_palette:
+            palette = []
+            for c in self.color_palette.split(','):
+                try:
+                    palette.append(utils.parse_color(c, True))
+                except ValueError, e:
+                    raise ValidationError(str(e))
+            self.color_palette = ','.join(palette)
+
+    def get_fonts(self):
+        if self.fonts:
+            fonts = self.fonts.split(',')
+            return [f.strip() for f in fonts]
+        return []
+
     def get_thumbnail(self):
         from impositions.utils import get_rendering_backend
         Backend = get_rendering_backend()
         backend = Backend()
-        template = self
-        return backend.get_template_thumbnail(template)
+        return backend.get_template_thumbnail(self.file.path)
 
+    @models.permalink
+    def get_absolute_url(self):
+        return ('impositions-template-edit', [self.pk])
+        
 
 class TemplateRegion(models.Model):
     template = models.ForeignKey(Template, related_name='regions')
@@ -77,6 +105,9 @@ class TemplateRegion(models.Model):
     default_text = models.TextField('Default Text', blank=True)
     default_image = models.CharField('Default Image', max_length=255, blank=True)
 
+    class Meta:
+        ordering = ['top', 'left']
+
     @property
     def size(self):
         return self.width, self.height
@@ -86,12 +117,23 @@ class TemplateRegion(models.Model):
         return (self.top, self.left, 
                self.top + self.height,
                self.left + self.width)
-    
-    def get_allowed_colors(self):
+
+    def clean(self):
         from impositions import utils
+        # make sure color values are valid
+        if self.allowed_colors:
+            colors = []
+            for c in self.allowed_colors.split(','):
+                try:
+                    colors.append(utils.parse_color(c, True))
+                except ValueError, e:
+                    raise ValidationError(str(e))
+            self.allowed_colors = ','.join(colors)
+
+    def get_allowed_colors(self):
         if self.allowed_colors:
             allowed = self.allowed_colors.split(',')
-            return [utils.parse_color(c) for c in allowed]
+            return [c.strip() for c in allowed]
         return []
 
     def get_allowed_fonts(self):
@@ -115,7 +157,6 @@ class TemplateRegion(models.Model):
 class Composition(models.Model):
     template = models.ForeignKey(Template)
     description = models.CharField(max_length=200)
-    # TODO: add format property so user can choose format (jpg, png, pdf)
 
     def __unicode__(self):
         return "[{0}] {1}".format(
@@ -123,6 +164,15 @@ class Composition(models.Model):
             self.description
         )
 
+    def save(self):
+        if not self.pk:
+            # Automatically add regions for the newly created composition
+            super(Composition, self).save()
+            for region in self.template.regions.all():
+                CompositionRegion(composition=self, template_region=region).save()
+        else:
+            super(Composition, self).save()
+            
     def render(self, fmt, **kwargs):
         from impositions.utils import get_rendering_backend
         Backend = get_rendering_backend()
@@ -133,11 +183,10 @@ class Composition(models.Model):
         from impositions.utils import get_data_loader
         context = {}
         for source in self.data_sources.all():
-            context.update(source.get_context(request))
-            DataLoader = get_data_loader(self.loader.path)
+            DataLoader = get_data_loader(source.path)
             data_loader = DataLoader(request)
             data_loader.set_instance(self.content_object)
-            context.update(data_loader.get_context(self.loader.prefix))
+            context.update(data_loader.get_context(source.prefix))
         return context
             
 class CompositionDataSource(models.Model):
@@ -155,8 +204,8 @@ class CompositionRegion(models.Model):
     font = models.CharField(max_length=50, blank=True)
     font_size = models.DecimalField(max_digits=8, decimal_places=2, 
                                     null=True, blank=True)
-    bg_color = models.CharField(max_length=50, blank=True)
-    fg_color = models.CharField(max_length=50, blank=True)
+    bg_color = models.CharField('Background', max_length=50, blank=True)
+    fg_color = models.CharField('Color', max_length=50, blank=True)
     border_color = models.CharField(max_length=50, blank=True)
     border_size = models.IntegerField(null=True, blank=True)
 
@@ -189,8 +238,9 @@ class CompositionRegion(models.Model):
         allowed = self.template_region.get_allowed_font_sizes()
         return len(allowed) > 0 and allowed[0] or None
     
-    def get_content(self, context):
+    def get_content(self):
         from django import template
+        context = self.get_context()
         type = self.template_region.content_type
         if type == 'image':
             if self.image:
@@ -199,6 +249,8 @@ class CompositionRegion(models.Model):
                 return context.get(self.template_region.default_image, None)
             return None
         elif type == 'text':
+            if self.text:
+                return self.text
             tpl = template.Template(self.template_region.default_text)
             default = tpl.render(template.Context(context)).strip()
             return self.text.strip() or default

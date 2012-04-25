@@ -43,9 +43,9 @@ class RegionForm(forms.ModelForm):
         self.fields['default_image'].initial = default_image
         self.fields['default_image'].widget = forms.Select(choices=image_choices)
         
-        to_choices = lambda s: [(v.strip(),v.strip()) for v in s.split(',')]
-        font_choices = to_choices(template.fonts)
-        color_choices = to_choices(template.color_palette)
+        to_choices = lambda l: [(v.strip(),v.strip()) for v in l]
+        font_choices = to_choices(template.get_fonts())
+        color_choices = to_choices(template.get_color_palette())
         self.fields['allowed_fonts'].widget = CSVSelectMultiple(choices=font_choices)
         self.fields['allowed_colors'].widget = CSVSelectMultiple(choices=color_choices)
         self.fields['allowed_font_sizes'].help_text = 'Specify font sizes points, separated by comma'
@@ -86,3 +86,52 @@ TemplateRegionFormSet = inlineformset_factory(models.Template,
 
 class CompositionForm(forms.ModelForm):
     model = models.Composition
+
+class CompRegionForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        self.composition_instance = kwargs.pop('composition_instance', None)
+
+        super(CompRegionForm, self).__init__(*args, **kwargs)
+        
+        # don't deal w/ empty form
+        if self.prefix.endswith('__prefix__'):
+            return
+
+        region = self.instance.template_region
+       
+        fonts = font_sizes = colors = None
+        if region:
+            # get allowed values
+            fonts = region.get_allowed_fonts() or region.template.get_fonts() \
+                    or utils.DEFAULT_FONTS
+            font_sizes = region.get_allowed_font_sizes() or utils.DEFAULT_FONTS
+            colors = region.get_allowed_colors() or region.template.get_color_palette() \
+                    or utils.DEFAULT_COLORS
+
+        to_choices = lambda l: [(v,v) for v in l]
+        self.fields['font'] = forms.ChoiceField(choices=to_choices(fonts))
+        self.fields['font_size'] = forms.ChoiceField(choices=to_choices(font_sizes))
+        self.fields['fg_color'] = forms.ChoiceField(choices=to_choices(colors))
+
+    model = models.CompositionRegion
+
+class BaseCompRegionFormSet(BaseInlineFormSet):
+    def __init__(self, *args, **kwargs):
+        instance = kwargs.get('instance')
+        self.max_num = instance.template.regions.count()
+        super(BaseCompRegionFormSet, self).__init__(*args, **kwargs)
+
+    def _construct_form(self, index, **kwargs):
+        kwargs['composition_instance'] = self.instance
+        return super(BaseCompRegionFormSet, self)._construct_form(index, **kwargs)
+
+    def _get_empty_form(self, **kwargs):
+        kwargs['composition_instance'] = self.instance
+        return super(BaseCompRegionFormSet, self)._get_empty_form(**kwargs)
+    empty_form = property(_get_empty_form)
+
+CompositionRegionFormSet = inlineformset_factory(models.Composition,
+                                                 models.CompositionRegion,
+                                                 form=CompRegionForm,
+                                                 formset=BaseCompRegionFormSet,
+                                                 extra=0)

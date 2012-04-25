@@ -1,6 +1,17 @@
 import re
+import itertools
 from django.utils.importlib import import_module
 from django.conf import settings
+
+DEFAULT_FONTS = ['Arial', 'Times New Roman']
+DEFAULT_COLORS = ['#000000']
+DEFAULT_FONT_SIZES = itertools.chain(
+    range(8,17),
+    range(18,29,2),
+    range(32,49,4),
+    range(54,73,6),
+    range(80,100,8)
+)
 
 def get_rendering_backend():
     imaging_module = '.backends.{0}'.format(settings.IMPOSITIONS_BACKEND)
@@ -12,13 +23,17 @@ def get_data_loader(path):
     mod = import_module(module)
     return getattr(mod, classname)
 
-def parse_color(color):
+def parse_color(color, return_hex=False):
+    if return_hex:
+        return rgb2hex(*parse_color(color))
+
     if isinstance(color, basestring):
         color = color.strip()
         # Check for css hex format
         re_hex = re.compile('^#?(([a-fA-F0-9]){3}){1,2}$')
         if re_hex.match(color):
-            color = color[1:]
+            if color.startswith('#'):
+                color = color[1:]
             if len(color) == 3:
                 color = ''.join(s*2 for s in color)
             if len(color) != 6:
@@ -33,6 +48,9 @@ def parse_color(color):
         pass
 
     raise ValueError("Unrecognized color: {}".format(color))
+
+def rgb2hex(r, g, b):
+    return '#{0:02X}{1:02X}{2:02X}'.format(r, g, b)
 
 def get_system_fonts():
     # Currently this only works with the cairo backend
