@@ -70,7 +70,6 @@ class CompositionUpdateView(helpers.InlineFormSetMixin, edit.UpdateView):
         if self.request.GET.get('next'):
             return self.request.GET['next']
         return super(CompositionUpdateView, self).get_success_url()
-            
     
     @method_decorator(login_required)
     def dispatch(self, request, *args, **kwargs):

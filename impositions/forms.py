@@ -1,7 +1,7 @@
 from django import forms
 from django.forms.models import inlineformset_factory, BaseInlineFormSet
-from impositions import models
-from impositions import utils
+from impositions import models, utils
+from impositions.widgets import ImageWidget
 
 class CSVSelect(object):
     def value_from_datadict(self, data, files, name):
@@ -109,6 +109,7 @@ class CompRegionForm(forms.ModelForm):
                     or utils.DEFAULT_COLORS
 
         to_choices = lambda l: [(v,v) for v in l]
+        self.fields['image'].widget = ImageWidget(width=150,height=150,crop='smart')
         self.fields['font'].widget = forms.Select(choices=to_choices(fonts))
         self.fields['font_size'].widget = forms.Select(choices=to_choices(font_sizes))
         self.fields['fg_color'].widget = forms.Select(choices=to_choices(colors))

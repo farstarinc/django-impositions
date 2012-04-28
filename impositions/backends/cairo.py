@@ -5,6 +5,8 @@ import cairo
 import poppler
 import pango
 import pangocairo
+import Image
+from StringIO import StringIO
 from django.conf import settings
 from impositions.backends import BaseRenderingBackend
 from impositions import utils
@@ -89,26 +91,27 @@ class RenderingBackend(BaseRenderingBackend):
         pc_context.update_layout(layout)
         pc_context.show_layout(layout)
 
+    def get_png(self, fobj):
+        output = StringIO()
+        if isinstance(fobj, basestring):
+            path = fobj
+            if not path.startswith('/'):
+                path = os.path.join(settings.MEDIA_ROOT, path)
+            fobj = open(fobj)
+        img = Image.open(fobj)
+        img.save(output, format="PNG")
+        output.seek(0)
+        return output
+
     def render_image_region(self, region):
-        tpl_region = region.template_region
         if not region.image:
             return
-        img_src = region.image.path
-        image = cairo.ImageSurface.create_from_png(img_src)
+        region_image = self.get_region_image(region)
+        png = self.get_png(region_image)
+        image = cairo.ImageSurface.create_from_png(png)
 
-        img_height = image.get_height()
-        img_width = image.get_width()
-        w = tpl_region.width
-        h = tpl_region.height
         x, y = region.template_region.left, region.template_region.top
         self.cr.translate(x, y)
-        width_ratio = float(w) / float(img_width)
-        height_ratio = float(h) / float(img_height)
-        if tpl_region.crop:
-            scale_xy = min(height_ratio, width_ratio)
-        else:
-            scale_xy = max(height_ratio, width_ratio)
-        self.cr.scale(scale_xy, scale_xy)
         self.cr.set_source_surface(image)
         self.cr.paint()
 
@@ -123,8 +126,8 @@ class RenderingBackend(BaseRenderingBackend):
             self.cr.save()
             if region.template_region.content_type == 'text':
                 self.render_text_region(region)
-            #elif region.template_region.content_type == 'image':
-            #    self.render_image_region(region)
+            elif region.template_region.content_type == 'image':
+                self.render_image_region(region)
             self.cr.restore()
         
         # Finish

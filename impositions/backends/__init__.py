@@ -1,5 +1,8 @@
+import os
 import StringIO
 from django.core.exceptions import ValidationError
+from django.core.files import File
+from easy_thumbnails.files import get_thumbnailer
 
 class BaseRenderingBackend(object):
     supported_formats = []
@@ -32,6 +35,22 @@ class BaseRenderingBackend(object):
             font = region.get_font()
             if allowed and font and font.lower() not in allowed:
                 raise ValidationError("Font not allowed in '{}': {}".format(name, font))
+
+    def get_region_image(self, region):
+        """
+        Returns a thumbnailed image according to region specs
+        """
+        # Save the file, in case it's an InMemoryUploadedFile
+        tpl_region = region.template_region
+        size = tpl_region.width, tpl_region.height
+        crop = tpl_region.crop and 'smart' or False
+        thumbnail_opts = dict(size=size, crop=crop)
+        imgfile = File(region.image.file)
+        filename = os.path.basename(region.image.file.name)
+        relative_name = os.path.join('impositions', 'thumbs', filename)
+        thumbnailer = get_thumbnailer(imgfile, relative_name=relative_name)
+        thumbnail = thumbnailer.get_thumbnail(thumbnail_opts)
+        return thumbnail.path
     
     def set_output(self, output):
         self.output = output
