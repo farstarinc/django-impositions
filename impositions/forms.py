@@ -104,14 +104,15 @@ class CompRegionForm(forms.ModelForm):
             # get allowed values
             fonts = region.get_allowed_fonts() or region.template.get_fonts() \
                     or utils.DEFAULT_FONTS
-            font_sizes = region.get_allowed_font_sizes() or utils.DEFAULT_FONTS
+            font_sizes = region.get_allowed_font_sizes() or list(utils.DEFAULT_FONT_SIZES)
             colors = region.get_allowed_colors() or region.template.get_color_palette() \
                     or utils.DEFAULT_COLORS
 
         to_choices = lambda l: [(v,v) for v in l]
-        self.fields['font'] = forms.ChoiceField(choices=to_choices(fonts))
-        self.fields['font_size'] = forms.ChoiceField(choices=to_choices(font_sizes))
-        self.fields['fg_color'] = forms.ChoiceField(choices=to_choices(colors))
+        self.fields['font'].widget = forms.Select(choices=to_choices(fonts))
+        self.fields['font_size'].widget = forms.Select(choices=to_choices(font_sizes))
+        self.fields['fg_color'].widget = forms.Select(choices=to_choices(colors))
+        self.fields['template_region'].widget = forms.HiddenInput()
 
     model = models.CompositionRegion
 

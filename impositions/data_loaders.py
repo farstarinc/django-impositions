@@ -21,15 +21,15 @@ class BaseDataLoader(object):
         return self.fields
 
     def get_field_value(self, field):
-        if not self.instance:
-            return None
-        try:
-            getattr(self.instance, field)
-        except AttributeError:
-            pass
         func = getattr(self, field, None)
         if func and callable(func):
             return func()
+        if not self.instance:
+            return None
+        try:
+            return getattr(self.instance, field)
+        except AttributeError:
+            pass
         return None
     
     def get_field_choices(self, type, prefix):
@@ -53,9 +53,11 @@ class BaseDataLoader(object):
         
     def get_context(self, prefix):
         context = {}
-        fields = itertools.chain(v for k,v in self.get_fields())
+        fields = itertools.chain(*self.get_fields().values())
         for f in fields:
-            if prefix:
-                f = '.'.join(prefix, f)
-            context[f] = self.get_field_value(f)
+            value = self.get_field_value(f)
+            context[f] =value
+        if prefix:
+            return {prefix: context}
         return context
+ 

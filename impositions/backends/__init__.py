@@ -9,9 +9,13 @@ class BaseRenderingBackend(object):
         if self.output is None:
             self.output = StringIO.StringIO()
         self.context = context
+        self.regions = []
     
-    def validate(self, comp):
-        for region in comp.regions.all():
+    def validate(self, comp, regions=None):
+        if regions is None:
+            regions = comp.regions.all()
+
+        for region in regions:
             name = region.template_region.name
             # check colors
             allowed = region.template_region.get_allowed_colors()
@@ -38,9 +42,14 @@ class BaseRenderingBackend(object):
     def render(self, comp, fmt):
         raise NotImplementedError
 
+    def get_thumbnail(self, comp):
+        """
+        Returns thumbnail for rendered comp for use with easy_thumbnails
+        """
+        raise NotImplementedError
+
     def get_template_thumbnail(self, template):
         """
-        Returns a file-like object with the template image for use with
-        the easy_thumbnails thumbnailer.
+        Returns thumbnail for rendered comp for use with easy_thumbnails
         """
         raise NotImplementedError

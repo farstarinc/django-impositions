@@ -7,6 +7,9 @@ import pango
 import pangocairo
 from django.conf import settings
 from impositions.backends import BaseRenderingBackend
+from impositions import utils
+
+FONT_SCALE = .75 # no idea why, but we need this.
 
 if not cairo.HAS_PDF_SURFACE:
     raise SystemExit('cairo was not compiled with PDF support')
@@ -32,6 +35,12 @@ class RenderingBackend(BaseRenderingBackend):
         self.width, self.height = self.page.get_size()
         self.pdf = cairo.PDFSurface(None, self.width, self.height)
         self.cr = cairo.Context(self.pdf)
+        
+        # Set a white background
+        self.cr.save()
+        self.cr.set_source_rgb(255,255,255) # set white bg
+        self.cr.paint()
+        self.cr.restore()
 
         # Render source pdf to destination
         self.cr.save()
@@ -46,7 +55,8 @@ class RenderingBackend(BaseRenderingBackend):
         
         # setup pango layout
         layout = pc_context.create_layout()
-        font_desc = '{} {}'.format(region.get_font(), region.get_font_size())
+        font_size = float(region.get_font_size()) * FONT_SCALE
+        font_desc = '{} {}'.format(region.get_font(), font_size)
         font = pango.FontDescription(font_desc)
         layout.set_font_description(font)
 
@@ -55,7 +65,7 @@ class RenderingBackend(BaseRenderingBackend):
             layout.set_width(region.template_region.width * pango.SCALE)
             layout.set_wrap(pango.WRAP_WORD)
 
-        content = region.get_content(self.context)
+        content = region.text
         if not region.template_region.allow_markup:
             content = re.sub(r'<[^>]*?>', '', content)
 
@@ -71,14 +81,19 @@ class RenderingBackend(BaseRenderingBackend):
             layout.set_alignment(getattr(pango, 'ALIGN_{}'.format(align)))
 
         layout.set_markup(content)
-        rgb = region.get_fg_color() or (0,0,0)
+        rgb = (0,0,0)
+        color = region.get_fg_color()
+        if color:
+            rgb = utils.parse_color(color)
         self.cr.set_source_rgb(*[int(c) for c in rgb])
         pc_context.update_layout(layout)
         pc_context.show_layout(layout)
 
     def render_image_region(self, region):
         tpl_region = region.template_region
-        img_src = region.get_content(self.context)
+        if not region.image:
+            return
+        img_src = region.image.path
         image = cairo.ImageSurface.create_from_png(img_src)
 
         img_height = image.get_height()
@@ -97,40 +112,59 @@ class RenderingBackend(BaseRenderingBackend):
         self.cr.set_source_surface(image)
         self.cr.paint()
 
-    def render(self, comp, fmt):
-        self.validate(comp)
+    def render(self, comp, fmt=None, regions=None):
+        self.validate(comp, regions)
         self.setup_template(comp.template.file.path)
 
-        for region in comp.regions.all():
+        if regions is None:
+            regions = comp.regions.all()
+
+        for region in regions:
             self.cr.save()
             if region.template_region.content_type == 'text':
                 self.render_text_region(region)
-            elif region.template_region.content_type == 'image':
-                self.render_image_region(region)
+            #elif region.template_region.content_type == 'image':
+            #    self.render_image_region(region)
             self.cr.restore()
         
         # Finish
-        if fmt == 'pdf':
+        if fmt is None:
+            return
+        elif fmt == 'pdf':
             self.pdf.show_page()
-            return self.output
         elif fmt == 'png':
             self.pdf.write_to_png(self.output)
         else:
             raise ValueError("Format not supported by cairo backend: {}".format(fmt))
-
+        
+        # seek to beginning so that file object can be read
+        self.output.seek(0)
         return self.output
 
-    def get_template_thumbnail(self, file_path):
+    def get_thumbnail(self, comp, regions=None):
+        dir = os.path.join('impositions', 'comps')
+        full_dir = os.path.join(settings.MEDIA_ROOT, dir)
+        filename = 'comp_{}_thumb.png'.format(comp.pk)
+        path = os.path.join(full_dir, filename)
+        if not os.path.exists(full_dir):
+            os.makedirs(full_dir)
+        file = open(path, 'w')
+        self.render(comp, regions=regions)
+        self.pdf.write_to_png(file)
+        file.close()
+        return os.path.join(dir, filename)
+
+    def get_template_thumbnail(self, template_path):
         # Check for rendered thumb in media
         dir = os.path.join('impositions', 'templates')
         full_dir = os.path.join(settings.MEDIA_ROOT, dir)
-        filename = '{}.png'.format(os.path.basename(file_path))
+        filename = '{}.png'.format(os.path.basename(template_path))
         path = os.path.join(full_dir, filename)
         if not os.path.exists(path):
             if not os.path.exists(full_dir):
                 os.makedirs(full_dir)
             file = open(path, 'w')
-            self.setup_template(file_path)
+            self.setup_template(template_path)
             self.pdf.write_to_png(file)
             file.close()
         return os.path.join(dir, filename)

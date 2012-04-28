@@ -1,17 +1,20 @@
 import re
 import itertools
+from decimal import Decimal
 from django.utils.importlib import import_module
 from django.conf import settings
+from django.db.backends.util import format_number
 
 DEFAULT_FONTS = ['Arial', 'Times New Roman']
 DEFAULT_COLORS = ['#000000']
-DEFAULT_FONT_SIZES = itertools.chain(
+DEFAULT_BG_COLORS = ['#FFFFFF']
+DEFAULT_FONT_SIZES = [Decimal(format_number(n,8,2))  for n in list(itertools.chain(
     range(8,17),
     range(18,29,2),
     range(32,49,4),
     range(54,73,6),
     range(80,100,8)
-)
+))]
 
 def get_rendering_backend():
     imaging_module = '.backends.{0}'.format(settings.IMPOSITIONS_BACKEND)

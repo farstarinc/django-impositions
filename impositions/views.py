@@ -1,9 +1,9 @@
-from django.conf import settings
+from django import http
 from django.core.urlresolvers import reverse
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required, login_required
 from django.utils.decorators import method_decorator
-from django.views.generic import list, edit
+from django.views.generic import list as list_views, edit
 from impositions import models, forms, utils, helpers
 
 class TemplateBase(object):
@@ -14,7 +14,7 @@ class TemplateBase(object):
         return super(TemplateBase, self).dispatch(request, *args, **kwargs)
 
 
-class TemplateListView(TemplateBase, list.ListView):
+class TemplateListView(TemplateBase, list_views.ListView):
     model = models.Template
     context_object_name = 'templates'
 
@@ -55,6 +55,7 @@ class TemplateUpdateView(TemplateBase, helpers.InlineFormSetMixin, edit.UpdateVi
         return context
 
 class TemplateDeleteView(TemplateBase, edit.DeleteView):
+    model = models.Template
     def get_success_url(self):
         return reverse('impositions-template-list')
 
@@ -64,18 +65,55 @@ class CompositionUpdateView(helpers.InlineFormSetMixin, edit.UpdateView):
     formset_class = forms.CompositionRegionFormSet
     context_object_name = 'composition'
     success_url = '.'
+
+    def get_success_url(self):
+        if self.request.GET.get('next'):
+            return self.request.GET['next']
+        return super(CompositionUpdateView, self).get_success_url()
+            
     
     @method_decorator(login_required)
     def dispatch(self, request, *args, **kwargs):
         return super(CompositionUpdateView, self).dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
+        regions = kwargs.get('regions', None)
         kwargs['formset_form_tpl'] = 'impositions/composition_region_form.html'
+        kwargs['composition_thumb'] = self.object.get_thumbnail(regions=regions)
         return super(CompositionUpdateView, self).get_context_data(**kwargs)
 
+class DummyRelatedManager(object):
+    def __init__(self, items):
+        self._items = items
+
+    def all(self):
+        return self._items
+
+class CompositionPreview(CompositionUpdateView):
+    """
+    By posting the form to this view, we can get a preview of the
+    composition without having to save it.
+    """
+    template_name = 'impositions/includes/comp_preview.html'
+
+    def form_valid(self, form, formset):
+        self.object = form.save(commit=False)
+        formset.instance = self.object
+        regions = list(self.object.regions.all())
+        changed_regions = formset.save(commit=False)
+        for region in changed_regions:
+            for i,r in enumerate(regions):
+                if r.pk == region.pk:
+                    regions[i] = region
+        context = self.get_context_data(form=form, formset=formset, regions=regions)
+        return self.render_to_response(context)
+
+    def get_success_url(self):
+        return '.'
 
 template_list = TemplateListView.as_view()
 template_create = TemplateCreateView.as_view()
 template_edit = TemplateUpdateView.as_view()
-template_delete = TemplateDeleteView.as_view(model=models.Template)
+template_delete = TemplateDeleteView.as_view()
 comp_edit = CompositionUpdateView.as_view()
+comp_preview = CompositionPreview.as_view()

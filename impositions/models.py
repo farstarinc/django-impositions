@@ -143,9 +143,10 @@ class TemplateRegion(models.Model):
         return []
 
     def get_allowed_font_sizes(self):
+        from django.db.backends.util import format_number
         if self.allowed_font_sizes:
             allowed = self.allowed_font_sizes.split(',')
-            return [Decimal(s) for s in allowed]
+            return [Decimal(format_number(float(s),8,2)) for s in allowed]
         return []
 
     def __unicode__(self):
@@ -169,32 +170,51 @@ class Composition(models.Model):
             # Automatically add regions for the newly created composition
             super(Composition, self).save()
             for region in self.template.regions.all():
-                CompositionRegion(composition=self, template_region=region).save()
+                CompositionRegion(comp=self, template_region=region).save()
         else:
             super(Composition, self).save()
             
     def render(self, fmt, **kwargs):
         from impositions.utils import get_rendering_backend
         Backend = get_rendering_backend()
-        backend = Backend()
-        return backend.render(self, fmt, **kwargs)
+        backend = Backend(**kwargs)
+        return backend.render(self, fmt)
 
-    def get_context(self, request):
-        from impositions.utils import get_data_loader
+    def get_context(self):
         context = {}
         for source in self.data_sources.all():
-            DataLoader = get_data_loader(source.path)
-            data_loader = DataLoader(request)
-            data_loader.set_instance(self.content_object)
-            context.update(data_loader.get_context(source.prefix))
+            data_loader = source.get_data_loader()
+            context.update(data_loader.get_context(source.loader.prefix))
         return context
-            
+
+    def load_default_data(self):
+        for region in self.regions.all():
+            region.load_default_data()
+            region.save()
+
+    def get_thumbnail(self, regions=None):
+        from impositions.utils import get_rendering_backend
+        Backend = get_rendering_backend()
+        backend = Backend()
+        return backend.get_thumbnail(self, regions=regions)
+
+    @models.permalink
+    def get_absolute_url(self):
+        return ('impositions-comp-edit', [self.pk])
+        
 class CompositionDataSource(models.Model):
     composition = models.ForeignKey(Composition, related_name='data_sources')
     loader = models.ForeignKey(DataLoader)
     content_type = models.ForeignKey(ContentType)
     object_id = models.PositiveIntegerField()
     content_object = GenericForeignKey('content_type', 'object_id')
+
+    def get_data_loader(self):
+        from impositions.utils import get_data_loader
+        DataLoader = get_data_loader(self.loader.path)
+        data_loader = DataLoader()
+        data_loader.set_instance(self.content_object)
+        return data_loader
 
 class CompositionRegion(models.Model):
     comp = models.ForeignKey(Composition, related_name='regions')
@@ -209,48 +229,52 @@ class CompositionRegion(models.Model):
     border_color = models.CharField(max_length=50, blank=True)
     border_size = models.IntegerField(null=True, blank=True)
 
+    class Meta:
+        ordering = ['template_region__top', 'template_region__left']
+
     def __unicode__(self):
         return self.template_region.name
+    
+    def load_default_data(self):
+        from django import template
+        context = self.comp.get_context()
+        type = self.template_region.content_type
+        if type == 'image':
+            default_image = self.template_region.default_image
+            if '.' in default_image:
+                prefix, varname = default_image.split('.', 1)
+                self.image = context.get(prefix, {}).get(varname, None)
+            else:
+                self.image = context.get(default_image, None)
+        elif type == 'text':
+            tpl = template.Template(self.template_region.default_text)
+            default = tpl.render(template.Context(context)).strip()
+            self.text = default
 
     def get_fg_color(self):
         from impositions import utils
         if self.fg_color:
-            return utils.parse_color(self.fg_color)
+            return self.fg_color
         allowed = self.template_region.get_allowed_colors()
-        return len(allowed) > 0 and allowed[0] or None
+        return len(allowed) > 0 and allowed[0] or utils.DEFAULT_COLORS[0]
 
     def get_bg_color(self):
         from impositions import utils
         if self.bg_color:
-            return utils.parse_color(self.bg_color)
+            return self.bg_color
         allowed = self.template_region.get_allowed_colors()
-        return len(allowed) > 0 and allowed[0] or None
+        return len(allowed) > 0 and allowed[0] or utils.DEFAULT_BG_COLORS[0]
 
     def get_font(self):
+        from impositions import utils
         if self.font:
             return self.font
         allowed = self.template_region.get_allowed_fonts()
-        return len(allowed) > 0 and allowed[0] or None
+        return len(allowed) > 0 and allowed[0] or utils.DEFAULT_FONTS[0]
 
     def get_font_size(self):
+        from impositions import utils
         if self.font_size:
             return self.font_size
         allowed = self.template_region.get_allowed_font_sizes()
-        return len(allowed) > 0 and allowed[0] or None
-    
-    def get_content(self):
-        from django import template
-        context = self.get_context()
-        type = self.template_region.content_type
-        if type == 'image':
-            if self.image:
-                return self.image.path
-            if self.template_region.default_image:
-                return context.get(self.template_region.default_image, None)
-            return None
-        elif type == 'text':
-            if self.text:
-                return self.text
-            tpl = template.Template(self.template_region.default_text)
-            default = tpl.render(template.Context(context)).strip()
-            return self.text.strip() or default
+        return len(allowed) > 0 and allowed[0] or utils.DEFAULT_FONT_SIZES[0]
