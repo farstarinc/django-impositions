@@ -3,6 +3,13 @@ from django.dispatch import receiver
 from django.db.models.signals import post_syncdb
 from impositions.models import DataLoader
 
+# If using south, run on post_migrate instead of post_syncdb
+try:
+    from south.signals import post_migrate
+    post_syncdb = post_migrate
+except ImportError:
+    pass
+
 @receiver(post_syncdb)
 def sync_data_loaders(sender, **kwargs):
     loaders = getattr(settings, 'IMPOSITIONS_DATA_LOADERS', ())
