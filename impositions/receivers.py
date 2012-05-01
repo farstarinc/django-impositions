@@ -1,14 +1,10 @@
+import sys
+import traceback
 from django.conf import settings
 from django.dispatch import receiver
 from django.db.models.signals import post_syncdb
+from django.core.signals import got_request_exception
 from impositions.models import DataLoader
-
-# If using south, run on post_migrate instead of post_syncdb
-try:
-    from south.signals import post_migrate
-    post_syncdb = post_migrate
-except ImportError:
-    pass
 
 @receiver(post_syncdb)
 def sync_data_loaders(sender, **kwargs):
@@ -26,12 +22,6 @@ def sync_data_loaders(sender, **kwargs):
 
         loader.save()
 
-import sys
-import traceback
-
-from django.core.signals import got_request_exception
-
+@receiver(got_request_exception)
 def exception_printer(sender, **kwargs):
     print >> sys.stderr, ''.join(traceback.format_exception(*sys.exc_info()))
-
-got_request_exception.connect(exception_printer)
