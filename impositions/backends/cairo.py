@@ -6,10 +6,14 @@ import poppler
 import pango
 import pangocairo
 import Image
-from StringIO import StringIO
 from django.conf import settings
 from impositions.backends import BaseRenderingBackend
 from impositions import utils
+
+try:
+    from CStringIO import CStringIO as StringIO
+except ImportError:
+    from StringIO import StringIO
 
 FONT_SCALE = .75 # no idea why, but we need this.
 
@@ -25,7 +29,7 @@ class RenderingBackend(BaseRenderingBackend):
         self.page = None
         self.pdf = None
 
-    def setup_template(self, source_path):
+    def setup_template(self, source_path, output):
         if self.cr and self.page and self.pdf:
             return
 
@@ -35,7 +39,7 @@ class RenderingBackend(BaseRenderingBackend):
 
         # Create destination document
         self.width, self.height = self.page.get_size()
-        self.pdf = cairo.PDFSurface(None, self.width, self.height)
+        self.pdf = cairo.PDFSurface(output, self.width, self.height)
         self.cr = cairo.Context(self.pdf)
         
         # Set a white background
@@ -115,9 +119,13 @@ class RenderingBackend(BaseRenderingBackend):
         self.cr.set_source_surface(image)
         self.cr.paint()
 
-    def render(self, comp, fmt=None, regions=None):
+    def render(self, comp, output=None, fmt=None, regions=None):
         self.validate(comp, regions)
-        self.setup_template(comp.template.file.path)
+        
+        if not output:
+            output = StringIO()
+        pdf_output = (fmt == 'pdf') and output or None
+        self.setup_template(comp.template.file.path, output=pdf_output)
 
         if regions is None:
             regions = comp.regions.all()
@@ -132,17 +140,17 @@ class RenderingBackend(BaseRenderingBackend):
         
         # Finish
         if fmt is None:
-            return
+            return self.pdf
         elif fmt == 'pdf':
             self.pdf.show_page()
+            return pdf_output
         elif fmt == 'png':
-            self.pdf.write_to_png(self.output)
+            self.pdf.write_to_png(output)
         else:
             raise ValueError("Format not supported by cairo backend: {}".format(fmt))
+
+        return output
         
-        # seek to beginning so that file object can be read
-        self.output.seek(0)
-        return self.output
 
     def get_thumbnail(self, comp, regions=None):
         dir = os.path.join('impositions', 'comps')

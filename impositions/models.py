@@ -174,11 +174,12 @@ class Composition(models.Model):
         else:
             super(Composition, self).save()
             
-    def render(self, fmt, **kwargs):
+    def render(self, **kwargs):
         from impositions.utils import get_rendering_backend
+        context = kwargs.pop('context', None)
         Backend = get_rendering_backend()
-        backend = Backend(**kwargs)
-        return backend.render(self, fmt)
+        backend = Backend(context=context)
+        return backend.render(self, **kwargs)
 
     def get_context(self):
         context = {}

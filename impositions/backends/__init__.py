@@ -1,5 +1,4 @@
 import os
-import StringIO
 from django.core.exceptions import ValidationError
 from django.core.files import File
 from easy_thumbnails.files import get_thumbnailer
@@ -7,10 +6,7 @@ from easy_thumbnails.files import get_thumbnailer
 class BaseRenderingBackend(object):
     supported_formats = []
 
-    def __init__(self, output=None, context={}):
-        self.output = output
-        if self.output is None:
-            self.output = StringIO.StringIO()
+    def __init__(self, context={}):
         self.context = context
         self.regions = []
     
@@ -52,13 +48,10 @@ class BaseRenderingBackend(object):
         thumbnail = thumbnailer.get_thumbnail(thumbnail_opts)
         return thumbnail.path
     
-    def set_output(self, output):
-        self.output = output
-
     def set_context(self, context):
         self.context = context
 
-    def render(self, comp, fmt):
+    def render(self, comp, output=None, fmt=None, regions=None):
         raise NotImplementedError
 
     def get_thumbnail(self, comp):
