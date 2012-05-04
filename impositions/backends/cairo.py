@@ -29,7 +29,7 @@ class RenderingBackend(BaseRenderingBackend):
         self.page = None
         self.pdf = None
 
-    def setup_template(self, source_path, output):
+    def setup_template(self, source_path, output=None):
         if self.cr and self.page and self.pdf:
             return
 
