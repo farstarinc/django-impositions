@@ -5,7 +5,7 @@ import cairo
 import poppler
 import pango
 import pangocairo
-import Image
+from PIL import Image
 from django.conf import settings
 from impositions.backends import BaseRenderingBackend
 from impositions import utils
