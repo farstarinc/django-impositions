@@ -31,6 +31,22 @@ class TemplateUpdateView(TemplateBase, helpers.InlineFormSetMixin, edit.UpdateVi
     formset_class = forms.TemplateRegionFormSet
     success_url = '.'
 
+    def dispatch(self, request, *args, **kwargs):
+        copy_id = kwargs.pop('copy_id', None)
+        response = super(TemplateUpdateView, self).dispatch(request, *args, **kwargs)
+        if copy_id:
+            copy_from_tpl = models.Template.objects.get(pk=copy_id)
+            for region in copy_from_tpl.regions.all():
+                # To copy the model field-for-field, we just unset the pk
+                region.pk = None
+                region.template_id = self.object.id
+                region.save()
+            template_url = reverse('impositions-template-edit', kwargs={'pk':self.object.pk})
+            return http.HttpResponseRedirect(template_url)
+        else:
+            return response
+
+
     def form_valid(self, form, formset):
         response = super(TemplateUpdateView, self).form_valid(form, formset)
         msg = 'Template successfully saved.'
@@ -51,6 +67,9 @@ class TemplateUpdateView(TemplateBase, helpers.InlineFormSetMixin, edit.UpdateVi
                 field_choices = data_loader.get_field_choices('text', loader.prefix)
                 fields.extend([(data_loader.verbose_name(), field_choices)])
             context['data_fields'] = fields
+        
+        other_templates = models.Template.objects.order_by('-id')
+        context['other_templates'] = other_templates.exclude(pk=self.object.pk)
 
         return context
 
@@ -114,5 +133,6 @@ template_list = TemplateListView.as_view()
 template_create = TemplateCreateView.as_view()
 template_edit = TemplateUpdateView.as_view()
 template_delete = TemplateDeleteView.as_view()
+template_copy = TemplateUpdateView.as_view()
 comp_edit = CompositionUpdateView.as_view()
 comp_preview = CompositionPreview.as_view()
