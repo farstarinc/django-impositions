@@ -67,6 +67,14 @@ class Template(models.Model):
                     raise ValidationError(str(e))
             self.color_palette = ','.join(palette)
 
+    def save(self):
+        creating = not self.pk
+        super(Template, self).save()
+        if creating:
+            default_loaders = getattr(settings, 'IMPOSITIONS_DEFAULT_DATA_LOADERS', [])
+            for pfx in default_loaders:
+                self.data_loaders.add(DataLoader.objects.get(prefix=pfx))
+
     def get_fonts(self):
         if self.fonts:
             fonts = self.fonts.split(',')
