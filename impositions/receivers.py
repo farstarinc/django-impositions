@@ -8,6 +8,7 @@ from impositions.models import DataLoader
 
 @receiver(post_syncdb)
 def sync_data_loaders(sender, **kwargs):
+    # FIXME: Check to see if impositions has been migrated to at least 0005
     loaders = getattr(settings, 'IMPOSITIONS_DATA_LOADERS', ())
     for pfx, path in loaders:
         try:
