@@ -100,6 +100,12 @@ class CompositionUpdateView(helpers.InlineFormSetMixin, edit.UpdateView):
         kwargs['composition_thumb'] = self.object.get_thumbnail(regions=regions)
         return super(CompositionUpdateView, self).get_context_data(**kwargs)
 
+    def get_formset_kwargs(self):
+        kwargs = super(CompositionUpdateView, self).get_formset_kwargs()
+        kwargs['queryset'] = self.object.regions.filter(template_region__editable=True)
+        return kwargs
+        
+
 class DummyRelatedManager(object):
     def __init__(self, items):
         self._items = items

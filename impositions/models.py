@@ -104,6 +104,7 @@ class TemplateRegion(models.Model):
     crop = models.BooleanField()
     default_text = models.TextField('Default Text', blank=True)
     default_image = models.CharField('Default Image', max_length=255, blank=True)
+    editable = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['top', 'left']

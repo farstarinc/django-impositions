@@ -88,6 +88,8 @@ class CompositionForm(forms.ModelForm):
     model = models.Composition
 
 class CompRegionForm(forms.ModelForm):
+    model = models.CompositionRegion
+
     def __init__(self, *args, **kwargs):
         self.composition_instance = kwargs.pop('composition_instance', None)
 
@@ -115,7 +117,6 @@ class CompRegionForm(forms.ModelForm):
         self.fields['fg_color'].widget = forms.Select(choices=to_choices(colors))
         self.fields['template_region'].widget = forms.HiddenInput()
 
-    model = models.CompositionRegion
 
 class BaseCompRegionFormSet(BaseInlineFormSet):
     def __init__(self, *args, **kwargs):
