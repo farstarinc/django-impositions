@@ -208,6 +208,11 @@ class Composition(models.Model):
         backend = Backend()
         return backend.get_thumbnail(self, regions=regions)
 
+    def add_data_source(self, prefix, object):
+        loader = DataLoader.objects.get(prefix=prefix)
+        data_source = CompositionDataSource(loader=loader, content_object=object)
+        self.data_sources.add(data_source)
+
     @models.permalink
     def get_absolute_url(self):
         return ('impositions-comp-edit', [self.pk])
