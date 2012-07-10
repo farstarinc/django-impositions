@@ -38,6 +38,8 @@ class RenderingBackend(BaseRenderingBackend):
         self.page = self.document.get_page(0)
 
         # Create destination document
+        # TODO: There seems to be an issue with quality, possibly due to issues
+        # with size calculations here.
         self.width, self.height = self.page.get_size()
         self.pdf = cairo.PDFSurface(output, self.width, self.height)
         self.cr = cairo.Context(self.pdf)
@@ -91,7 +93,7 @@ class RenderingBackend(BaseRenderingBackend):
         color = region.get_fg_color()
         if color:
             rgb = utils.parse_color(color)
-        self.cr.set_source_rgb(*[int(c) for c in rgb])
+        self.cr.set_source_rgb(*[float(c)/255 for c in rgb])
         pc_context.update_layout(layout)
         pc_context.show_layout(layout)
 
