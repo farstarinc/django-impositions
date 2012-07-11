@@ -32,16 +32,18 @@ class BaseDataLoader(object):
             pass
         return None
     
+    def get_field_verbose_name(self, field):
+        try:
+            field = self.model._meta.get_field(field)
+            return unicode(field.verbose_name).capitalize()
+        except FieldDoesNotExist:
+            return None
+
     def get_field_choices(self, type, prefix):
         choices = []
         for field in self.fields[type]:
             key = '.'.join((prefix, field))
-            verbose_name = None
-            try:
-                field = self.model._meta.get_field(field)
-                verbose_name = unicode(field.verbose_name).capitalize()
-            except FieldDoesNotExist:
-                pass
+            verbose_name = self.get_field_verbose_name(field)
             if not verbose_name:
                 func = getattr(self, field, None)
                 if func and hasattr(func, 'verbose_name'):

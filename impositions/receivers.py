@@ -5,6 +5,7 @@ from django.dispatch import receiver
 from django.db.models.signals import post_syncdb
 from django.core.signals import got_request_exception
 from impositions.models import DataLoader
+from impositions.utils import get_data_loader
 
 @receiver(post_syncdb)
 def sync_data_loaders(sender, **kwargs):
@@ -22,6 +23,14 @@ def sync_data_loaders(sender, **kwargs):
                 loader.path = path
 
         loader.save()
+
+    # remove data obsolete data loaders
+    for loader in DataLoader.objects.all():
+        try:
+            get_data_loader(loader.path)
+        except (ImportError, AttributeError):
+            print 'Removing obsolete data loader: {}'.format(loader.prefix)
+            loader.delete()
 
 @receiver(got_request_exception)
 def exception_printer(sender, **kwargs):

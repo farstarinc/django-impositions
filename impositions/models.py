@@ -1,6 +1,7 @@
 import os
 from decimal import Decimal
 from django.db import models
+from django.db.models.fields.files import FieldFile
 from django.core.exceptions import ValidationError
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
@@ -192,9 +193,15 @@ class Composition(models.Model):
 
     def get_context(self):
         context = {}
-        for source in self.data_sources.all():
-            data_loader = source.get_data_loader()
-            context.update(data_loader.get_context(source.loader.prefix))
+        for loader in self.template.data_loaders.all():
+            from impositions.utils import get_data_loader
+            data_loader = get_data_loader(loader.path)()
+            try:
+                source = self.data_sources.get(loader=loader)
+                data_loader.set_instance(source.content_object)
+            except CompositionDataSource.DoesNotExist:
+                pass
+            context.update(data_loader.get_context(loader.prefix))
         return context
 
     def load_default_data(self):
@@ -224,12 +231,8 @@ class CompositionDataSource(models.Model):
     object_id = models.PositiveIntegerField()
     content_object = GenericForeignKey('content_type', 'object_id')
 
-    def get_data_loader(self):
-        from impositions.utils import get_data_loader
-        DataLoader = get_data_loader(self.loader.path)
-        data_loader = DataLoader()
-        data_loader.set_instance(self.content_object)
-        return data_loader
+    class Meta:
+        unique_together = ['composition', 'loader']
 
 class CompositionRegion(models.Model):
     comp = models.ForeignKey(Composition, related_name='regions')
@@ -258,9 +261,14 @@ class CompositionRegion(models.Model):
             default_image = self.template_region.default_image
             if '.' in default_image:
                 prefix, varname = default_image.split('.', 1)
-                self.image = context.get(prefix, {}).get(varname, None)
+                img = context.get(prefix, {}).get(varname, None)
             else:
-                self.image = context.get(default_image, None)
+                img = context.get(default_image, None)
+            # if image is not a FieldFile, assume it's a file-like object
+            if isinstance(img, FieldFile):
+                self.image = img
+            elif img is not None:
+                self.image.save(os.path.basename(img.name), img, save=False)
         elif type == 'text':
             tpl = template.Template(self.template_region.default_text)
             default = tpl.render(template.Context(context)).strip()

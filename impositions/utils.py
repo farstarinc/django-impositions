@@ -16,6 +16,8 @@ DEFAULT_FONT_SIZES = [Decimal(format_number(n,8,2))  for n in list(itertools.cha
     range(80,100,8)
 ))]
 
+class DataLoaderNotFound(Exception): pass
+
 def get_rendering_backend():
     imaging_module = '.backends.{0}'.format(settings.IMPOSITIONS_BACKEND)
     engine = import_module(imaging_module, package='impositions')
