@@ -9,6 +9,7 @@ class BaseRenderingBackend(object):
     def __init__(self, context={}):
         self.context = context
         self.regions = []
+        self.dpi = 72
     
     def validate(self, comp, regions=None):
         if regions is None:
@@ -38,9 +39,10 @@ class BaseRenderingBackend(object):
         """
         # Save the file, in case it's an InMemoryUploadedFile
         tpl_region = region.template_region
-        size = tpl_region.width, tpl_region.height
+        scale = self.dpi / 72
+        size = tpl_region.width * scale, tpl_region.height * scale
         crop = tpl_region.crop and 'smart' or False
-        thumbnail_opts = dict(size=size, crop=crop)
+        thumbnail_opts = dict(size=size, crop=crop, upscale=True)
         imgfile = File(region.image.file)
         filename = os.path.basename(region.image.file.name)
         relative_name = os.path.join('impositions', 'thumbs', filename)

@@ -28,6 +28,7 @@ class RenderingBackend(BaseRenderingBackend):
         self.cr = None
         self.page = None
         self.pdf = None
+        self.dpi = 300
 
     def setup_template(self, source_path, output=None):
         if self.cr and self.page and self.pdf:
@@ -120,6 +121,8 @@ class RenderingBackend(BaseRenderingBackend):
 
         x, y = region.template_region.left, region.template_region.top
         self.cr.translate(x, y)
+        scale_factor = 72./self.dpi
+        self.cr.scale(scale_factor, scale_factor)
         self.cr.set_source_surface(image)
         self.cr.paint()
 
@@ -128,7 +131,13 @@ class RenderingBackend(BaseRenderingBackend):
         
         if not output:
             output = StringIO()
-        pdf_output = (fmt == 'pdf') and output or None
+
+        if fmt == 'pdf':
+            pdf_output = output
+            self.dpi = 300
+        else:
+            pdf_output = None
+            self.dpi = 72
         self.setup_template(comp.template.file.path, output=pdf_output)
 
         if regions is None:
