@@ -46,13 +46,15 @@ class RenderingBackend(BaseRenderingBackend):
         
         # Set a white background
         self.cr.save()
-        self.cr.set_source_rgb(255,255,255) # set white bg
+        self.cr.set_source_rgb(1,1,1) # set white bg
         self.cr.paint()
         self.cr.restore()
 
         # Render source pdf to destination
         self.cr.save()
-        self.page.render(self.cr)
+        # NOTE: This is a costly function, especially with large PDFs. Consider
+        # using task queuing (eg, celery)
+        self.page.render_for_printing(self.cr)
         self.cr.restore()
 
     def render_text_region(self, region):
