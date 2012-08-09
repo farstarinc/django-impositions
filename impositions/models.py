@@ -88,6 +88,12 @@ class Template(models.Model):
         backend = Backend()
         return backend.get_template_thumbnail(self.file.path)
 
+    def get_dimensions(self):
+        from impositions.utils import get_rendering_backend
+        Backend = get_rendering_backend()
+        backend = Backend()
+        return backend.get_dimensions(self.file.path)
+
     @models.permalink
     def get_absolute_url(self):
         return ('impositions-template-edit', [self.pk])

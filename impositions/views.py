@@ -57,9 +57,13 @@ class TemplateUpdateView(TemplateBase, helpers.InlineFormSetMixin, edit.UpdateVi
         context = super(TemplateUpdateView, self).get_context_data(**kwargs)
 
         context['formset_form_tpl'] = 'impositions/region_form.html'
-
+        
         context['data_fields'] = []
         if self.object:
+            tpl_width, tpl_height = self.object.get_dimensions()
+            context['tpl_width'] = tpl_width
+            context['tpl_height'] = tpl_height
+
             fields = []
             for loader in self.object.data_loaders.all():
                 DataLoader = utils.get_data_loader(loader.path)

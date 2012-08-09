@@ -192,3 +192,7 @@ class RenderingBackend(BaseRenderingBackend):
             self.pdf.write_to_png(file)
             file.close()
         return os.path.join(dir, filename)
+    
+    def get_dimensions(self, template_path):
+        self.setup_template(template_path)
+        return self.width, self.height

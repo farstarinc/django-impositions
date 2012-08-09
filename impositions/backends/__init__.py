@@ -67,3 +67,9 @@ class BaseRenderingBackend(object):
         Returns thumbnail for rendered comp for use with easy_thumbnails
         """
         raise NotImplementedError
+
+    def get_dimensions(self, template):
+        """
+        Returns the 
+        """
+        raise NotImplementedError
