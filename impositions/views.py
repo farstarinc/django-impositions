@@ -139,6 +139,15 @@ class CompositionPreview(CompositionUpdateView):
     def get_success_url(self):
         return '.'
 
+    def get_context_data(self, **kwargs):
+        import uuid
+        context = super(CompositionPreview, self).get_context_data(**kwargs)
+        context.update({
+            'cache_buster': uuid.uuid4().hex
+        })
+        return context
+
+
 template_list = TemplateListView.as_view()
 template_create = TemplateCreateView.as_view()
 template_edit = TemplateUpdateView.as_view()
