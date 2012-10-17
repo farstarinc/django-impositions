@@ -90,8 +90,8 @@ class CompositionUpdateView(helpers.InlineFormSetMixin, edit.UpdateView):
     success_url = '.'
 
     def get_success_url(self):
-        if self.request.GET.get('next'):
-            return self.request.GET['next']
+        if self.request.REQUEST.get('next'):
+            return self.request.REQUEST['next']
         return super(CompositionUpdateView, self).get_success_url()
     
     @method_decorator(login_required)
